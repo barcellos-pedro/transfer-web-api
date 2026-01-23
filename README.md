@@ -1,118 +1,104 @@
-# API Transferências Financeiras
+# Financial Transfers API
 
-Este projeto consiste em uma API RESTful para gerenciamento de clientes e realização de transferências financeiras.
+This project consists of a RESTful API for customer management and financial transfers.
 
-O princípio [KISS](https://en.wikipedia.org/wiki/KISS_principle) (*Keep It Simple, Stupid!*) foi adotado para manter simplicidade, clareza e facilitar a manutenção do projeto.
-
-## Tecnologias e Requisitos
+## Technologies and Requirements
 
 * **Java 25**
 * **Spring Boot 4**
 * **H2**
 * **Maven**
 
-## Como Executar a Aplicação
+## How to Run the Application
 
-1. **Pré-requisitos**: Certifique-se de ter o **JDK 21** e o **Maven** instalados.
-2. **Clone o repositório**:
+1. **Prerequisites**: Make sure you have **JDK 21** and **Maven** installed.
+2. **Clone the repository**:
 
 ```bash
 git clone https://github.com/barcellos-pedro/api-transferencia.git
 cd api-transferencia
 ```
 
-3. **Compile e execute**:
-
-Para rodar com o perfil padrão
+1. **Compile and run**:
 
 ```bash
 mvn spring-boot:run
 ```
 
-Para rodar com o perfil **dev** que já possui alguns registros no banco de dados
-```bash
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
-```
+1. **Access the API**: The application will be available at `http://localhost:8080`.
+2. **Interactive Documentation (Swagger)**: Access `http://localhost:8080/swagger-ui/index.html` to test the endpoints
+   in the browser
 
-4. **Acesse a API**: A aplicação estará disponível em `http://localhost:8080`.
-5. **Documentação Interativa (Swagger)**: Acesse `http://localhost:8080/swagger-ui/index.html` para testar os endpoints
-   no navegador
+## Main Endpoints
 
-## Endpoints Principais
+The API follows RESTful patterns and URL versioning (`/v1/...`):
 
-A API segue o padrão RESTful e versionamento via URL (`/v1/...`):
+**Customers**:
 
-**Clientes**:
+* `GET /v1/customers`: General customer listing.
+* `POST /v1/customers`: Register new customer.
+* `GET /v1/customers/{account}`: Search Customer by account number.
+* `GET /v1/customers/{account}/transfers`: History ordered by descending date, including failures.
+* `POST /v1/customers/{account}/transfers`: Perform transfer between accounts (Limit of R$ 10,000.00).
 
-* `GET /v1/customers`: Listagem geral de clientes.
-* `POST /v1/customers`: Cadastro de novo cliente.
-* `GET /v1/customers/{account}`: Busca Cliente por número de conta.
-* `GET /v1/customers/{account}/transfers`: Histórico ordenado por data decrescente, incluindo falhas.
-* `POST /v1/customers/{account}/transfers`: Realiza transferência entre contas (Limite de R$ 10.000,00).
+## Additional Endpoints
 
-## Endpoints adicionais
+* `GET /api-docs` - OpenAPI specification in JSON.
+* `GET /actuator/health`: Application health check.
+* `GET /swagger-ui/index.html`: Visual interface to test API endpoints.
 
-* `GET /api-docs` - Especificação OpenAPI em JSON.
-* `GET /actuator/health`: Check da saúde da aplicação.
-* `GET /swagger-ui/index.html`: Interface visual para testar os endpoints da API.
+## Monitoring and Documentation
 
-## Monitoramento e Documentação
+The API uses Spring Boot Actuator to provide metrics and health status, essential for production environments and
+observability.
 
-A API utiliza o Spring Boot Actuator para fornecer métricas e estados de saúde, essencial para ambientes de produção e
-observabilidade.
+**Diagnostic Endpoints (Actuator)**
 
-**(Endpoints de Diagnóstico (Actuator)**
+| Endpoint              | Description        | Purpose                                                 |
+|-----------------------|--------------------|---------------------------------------------------------|
+| GET /actuator/health  | Application Health | Checks if App, DB and Disk are operational.             |
+| GET /actuator/metrics | Metrics            | Lists available metrics (JVM, CPU, HTTP Requests).      |
+| GET /actuator/info    | Information        | Custom data about project version and build.            |
 
-| Endpoint              | Descrição          | Utilidade                                                |
-|-----------------------|--------------------|----------------------------------------------------------|
-| GET /actuator/health  | Saúde da Aplicação | Verifica se o App, DB e Disco estão operacionais.        |
-| GET /actuator/metrics | Métricas           | Lista métricas disponíveis (JVM, CPU, Requisições HTTP). |
-| GET /actuator/info    | Informações        | Dados personalizados sobre a versão e build do projeto.  |
+## Engineering & Architecture Decisions
 
-## Decisões de Engenharia & Arquitetura
+### 1. History Resilience
 
-### 1. Resiliência no Histórico
+As requested, unsuccessful transfers are also stored. To ensure that the failure record is
+persisted even when the financial transaction suffers rollback, I used **`REQUIRES_NEW`** propagation in the audit
+service. This guarantees the integrity of the history for banking compliance.
 
-Transferências sem sucesso também são armazenadas. Para garantir que o registro de falha seja
-persistido mesmo quando a transação financeira sofrer rollback, utilizei a propagação **`REQUIRES_NEW`** no serviço de
-auditoria. Isso garante a integridade do histórico para conformidade bancária.
+### 2. Concurrency Control
 
-### 2. Controle de Concorrência
+To meet the concurrency control requirement in the transfer operation, the following was implemented:
 
-Para atender ao requisito de controle de concorrência na operação de transferência, foi implementado:
+* **Pessimistic Locking** (or **Optimistic Locking** with `@Version`): To avoid the "Lost Update" problem when
+  two processes try to debit from the same account simultaneously.
 
-* **Optimistic Locking** com `@Version` quando dois processos tentam debitar da mesma conta simultaneamente.
+### 3. Business Rules Validation
 
-### 3. Validação de Regras de Negócio
+The rules of sufficient balance and maximum limit of R$ 10,000.00 per operation were centralized in the service layer,
+ensuring that the database state remains consistent.
 
-As regras de saldo suficiente e limite máximo de R$ 10.000,00 por operação foram centralizadas na camada de serviço,
-garantindo que o estado do banco de dados permaneça consistente.
+## Tests
 
-## Testes
+Test coverage was prioritized to ensure the reliability of transfers:
 
-A cobertura de testes foi priorizada para garantir a confiabilidade das transferências:
+* **Unit Tests**: Validation of business logic and balance calculations.
+* **Integration Tests**: Complete transfer flow simulating concurrency and database rollback.
 
-* **Testes CI/CD**: Execução dos testes unitários e de integração na pipeline após cada commit.
-* **Testes Unitários**: Validação de lógica de negócio e cálculos de saldo.
-* **Testes de Integração**: Fluxo completo de transferência simulando concorrência e rollback de banco de dados.
-
-Execute os testes com:
+Run the tests with:
 
 ```bash
 mvn test
 ```
 
-## Base do Projeto
+## Project Base
 
-O projeto foi estruturado utilizando o [Spring Initializr](https://start.spring.io).
+The project was structured using [Spring Initializr](https://start.spring.io).
 
-**Stack Tecnológica e Dependências**
+**Technology Stack and Dependencies**
 
-Abaixo, os principais componentes selecionados para atender aos requisitos da API:
+Below, the main components selected to meet the API requirements:
 
 <img width="1710" height="654" alt="image" src="https://github.com/user-attachments/assets/35a7e8da-9396-4ad3-944b-87a0fa95573a" />
-
-## Requisitos
-
-Confira mais detalhes sobre os [requisitos](./docs/REQUISITOS.md) em `docs/REQUISITOS.md`
-
