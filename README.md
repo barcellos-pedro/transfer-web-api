@@ -11,7 +11,7 @@ This project consists of a RESTful API for customer management and financial tra
 
 ## How to Run the Application
 
-1. **Prerequisites**: Make sure you have **JDK 21** and **Maven** installed.
+1. **Prerequisites**: Make sure you have **JDK 25** and **Maven** installed.
 2. **Clone the repository**:
 
 ```bash
